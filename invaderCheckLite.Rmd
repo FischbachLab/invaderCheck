@@ -1,0 +1,322 @@
+---
+title: "invaderCheck-Lite"
+author: "Sunit"
+date: "04/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(lubridate)
+```
+
+
+```{r}
+workdir = "/Users/sunit.jain/Research/Alice/InvaderCheckLite"
+fig_dir = paste0(workdir,"/Figures")
+
+min_reads = 2
+min_abundance = 1e-4
+time_stamp = now() %>% format("%Y%m%d")
+mbfv1_midas_output = "/Users/sunit.jain/Research/Alice/in_vivo/Mouse_Backfill/Midas_Results/v1/20201210_mbfv1_dataframe_minRelAbund_0.combined.csv"
+mbfv2_midas_output = "/Users/sunit.jain/Research/Alice/in_vivo/Mouse_Backfill/Midas_Results/v2/20201204_mbfv2_dataframe_minRelAbund_0.csv"
+
+scv1_2.strain_contributions = "/Users/sunit.jain/Research/Sunit/Midas/SCv1_2.art_reads_output.full_dataframe.csv"
+scv2_3.strain_contributions = "/Users/sunit.jain/Research/Sunit/Midas/SCv2_3.art_reads_output.full_dataframe.csv"
+# mbfv1_p100 = "/Users/sunit.jain/Research/Alice/Midas_NinjaMap_ImmiCheck_Compare/01_vectors_coverage_stats.csv"
+mbfv1_p100 = "/Users/sunit.jain/Research/Alice/InvaderCheckLite/MBFv1/genome_coverage_summary.id100_aln100.csv"
+mbfv1_p99 = "/Users/sunit.jain/Research/Alice/InvaderCheckLite/MBFv1/genome_coverage_summary.id99_aln100.csv"
+mbfv2_p100 = "/Users/sunit.jain/Research/Alice/InvaderCheckLite/MBFv2/genome_coverage_summary.id100_aln100.csv"
+mbfv2_p99 = "/Users/sunit.jain/Research/Alice/InvaderCheckLite/MBFv2/genome_coverage_summary.id99_aln100.csv"
+```
+
+
+```{r}
+make_dir = function(dir_path){
+  if (! dir.exists(dir_path)){
+    dir.create(dir_path, recursive = TRUE, mode = "0777")
+  }
+  return(dir_path)
+}
+
+make_dir(fig_dir)
+```
+
+
+```{r}
+new_genomes_in_SCv2_3 = c(
+"Adlercreutzia-equolifaciens-DSM-19450",
+"Alistipes-finegoldii-DSM-17242",
+"Alistipes-ihumii-AP11-MAF-2",
+"Alistipes-indistinctus-YIT-12060-DSM-22520-MAF-2",
+"Alistipes-onderdonkii-DSM-19147-MAF-2",
+"Alistipes-senegalensis-JC50-DSM-25460-MAF-2",
+"Alistipes-shahii-WAL-8301-DSM-19121-MAF-2",
+"Bacteroides-rodentium-DSM-26882-MAF-2",
+"Bilophila-wadsworthia-ATCC-49260",
+"Blautia-sp-KLE-1732-HM-1032-MAF-2",
+"Blautia-wexlerae-DSM-19850-MAF-2",
+"Bryantella-formatexigens-DSM-14469-MAF-2",
+"Burkholderiales-bacterium-1-1-47",
+"Butyricimonas-virosa-DSM-23226-MAF-2",
+"Clostridiales-bacterium-VE202-03",
+"Clostridiales-bacterium-VE202-14",
+"Clostridiales-bacterium-VE202-27-MAF-1",
+"Clostridium-asparagiforme-DSM-15981-MAF-2",
+"Clostridium-bartlettii-DSM-16795",
+"Clostridium-bolteae-ATCC-BAA-613-MAF-2",
+"Clostridium-sp-ATCC-29733-VPI-C48-50-MAF-1",
+"Eubacterium-eligens-ATCC-27750-MAF-2",
+"Intestinimonas-butyriciproducens-DSM-26588-MAF-2",
+"Odoribacter-splanchnicus-DSM-20712",
+"Oscillibacter-sp-KLE-1728-MAF-1",
+"Ruminococcus-gauvreauii-DSM-19829-MAF-2",
+"Ruminococcus-obeum-ATCC-29174-MAF-1",
+"Subdoligranulum-sp-4-3-54A2FAA-MAF-1"
+)
+```
+
+
+```{r}
+read_midas_output = function(midas_output_file, minimum_reads, minimum_abundance, selected_week=NULL){
+  df = read_csv(midas_output_file) %>% 
+    filter(!is.na(Challenge)) %>% 
+    filter(count_reads > minimum_reads) %>% 
+    filter(relative_abundance > minimum_abundance) %>% 
+    rowwise() %>% 
+    mutate(sample_name = nth(str_split(sample_id,"_")[[1]], 1)) %>% 
+    ungroup() %>% 
+    select(-sample_id) %>% 
+    rename("midas_bucket"="name",
+           "sample_id"="sample_name")
+    
+  
+  if (! is_null(selected_week)) {
+    return (df %>% filter(Week==selected_week))
+  } else {
+    return (df)
+  }
+}
+
+# read_midas_output(mbfv1_midas_output,min_reads, min_abundance, selected_week="W8")
+```
+
+
+```{r}
+read_strain_contributions = function(strain_contributions_file){
+  strains_df = read_csv(strain_contributions_file) %>%
+  rename("midas_bucket"="name", 
+         "genome_name" = "sample_id")
+  
+  return (strains_df)
+}
+```
+
+
+```{r}
+read_strain_contributions(scv2_3.strain_contributions) %>%
+  group_by(genome_name) %>% 
+  summarise(num_midas_buckets = n(),
+            gross_contributions = sum(abundance, na.rm=TRUE)) %>% 
+  arrange(-gross_contributions) %>% 
+  filter(num_midas_buckets > 1)
+# bucket_contributors
+```
+```{r}
+read_strain_contributions(scv2_3.strain_contributions) %>%
+  group_by(midas_bucket) %>% 
+  summarise(num_strains = n(),
+            gross_contributions = sum(abundance, na.rm=TRUE)) %>% 
+  arrange(-gross_contributions) %>% 
+  filter(num_strains > 1)
+```
+
+```{r}
+extend_midas_output = function(midas_output_file, strain_contributions_file, minimum_reads, minimum_abundance, selected_week=NULL){
+  midas_df = read_midas_output(midas_output_file, minimum_reads, minimum_abundance, selected_week)
+  strains_midas_df = read_strain_contributions(strain_contributions_file)
+  
+  left_join(midas_df, strains_midas_df, by="midas_bucket") %>% 
+    drop_na(genome_name)
+}
+# extend_midas_output(mbfv1_midas_output,scv1_2.strain_contributions, min_reads, min_abundance, selected_week="W8")
+```
+
+
+```{r}
+read_coverage_stats = function(coverage_stats_file){
+  read_csv(coverage_stats_file) %>% 
+    rename("sample_id"="sample_name")
+}
+# read_coverage_stats(mbfv1_p100)
+```
+
+## IC-Lite Algorithm
+
+- Compute the actual Midas results for each Week 8 sample [Midas --> Sample Details] -- (A)
+- Compute Midas bucket contributions based on in silico reads. [Midas --> Strains] -- (B)
+- Merge A and B on Midas Buckets [Sample Details <-- Midas --> Strains] -- (C)
+
+- Compute the % coverage and depth of cov for each genome in each Sample [Strains --> Strain Details] -- (D)
+- Merge C and D on Strains and Sample ids [Sample Details <-- Midas --> Strains --> Strain Details] -- (E)
+
+- Plot (E)
+
+```{r}
+run_icLite_aggregation = function(midas_output_file, strain_contributions_file, coverage_stats_file, minimum_reads, minimum_abundance, selected_week){
+  left_join(
+    extend_midas_output(midas_output_file, strain_contributions_file, minimum_reads, minimum_abundance, selected_week),
+    read_coverage_stats(coverage_stats_file),
+    by = c("genome_name", "sample_id")
+  )
+}
+```
+
+```{r}
+plot_icl_aggregation = function(df, title, subtitle=NULL){
+  df %>% 
+    ggplot(aes(ref_percent_coverage, mean_ref_coverage_depth))+
+    geom_point(aes(color=relative_abundance), alpha = 0.3)+
+    # scale_y_log10()+
+    geom_rug(alpha=0.1)+
+    scale_color_viridis_c(name="Midas \nrelative \nabundance")+
+    scale_y_continuous(trans='log10', breaks = 10^(seq(-10,10,1)),
+                       labels = trans_format("log10", math_format(10^.x)))+
+    xlab("Percent genome covered")+
+    ylab("Mean coverage depth")+
+    ggtitle(title, subtitle)+
+    theme_bw()+
+    theme(text = element_text(size = 15),
+          axis.text.x=element_text(size = 12),
+          axis.text.y=element_text(size = 12))
+}
+
+```
+
+
+### hCom1
+
+```{r}
+run_icLite_aggregation(mbfv1_midas_output,scv1_2.strain_contributions, mbfv1_p100, min_reads, min_abundance, selected_week="W8") %>%
+  select(midas_bucket, genome_name, sample_id, relative_abundance, ref_percent_coverage, mean_ref_coverage_depth) %>%
+  filter((relative_abundance >= min_abundance)) %>%
+  plot_icl_aggregation(.,"hCom1 genomes in MBFv1 - Week8", "p100, aln100")
+
+ggsave(paste0(fig_dir,"/",time_stamp,"_hCom1_mbfv1_w8.ic_lite_p100_a100.eps"),
+       dpi="retina",
+       height = 12,
+       width = 16,
+       units = "in")
+
+ggsave(paste0(fig_dir,"/",time_stamp,"_hCom1_mbfv1_w8.ic_lite_p100_a100.pdf"),
+       useDingbats=FALSE,
+       dpi="retina",
+       height = 12,
+       width = 16,
+       units = "in")
+```
+
+```{r}
+run_icLite_aggregation(mbfv1_midas_output,scv1_2.strain_contributions, mbfv1_p99, min_reads, min_abundance, selected_week="W8") %>% 
+  filter((relative_abundance >= min_abundance)) %>%
+  plot_icl_aggregation(.,"hCom1 genomes in MBFv1 - Week8", "p99, aln100")
+
+ggsave(paste0(fig_dir,"/",time_stamp,"_hCom1_mbfv1_w8.ic_lite_p99_a100.eps"),
+       dpi="retina",
+       height = 12,
+       width = 16,
+       units = "in")
+
+ggsave(paste0(fig_dir,"/",time_stamp,"_hCom1_mbfv1_w8.ic_lite_p99_a100.pdf"),
+       useDingbats=FALSE,
+       dpi="retina",
+       height = 12,
+       width = 16,
+       units = "in")
+```
+### hCom2
+
+```{r}
+run_icLite_aggregation(mbfv2_midas_output,scv2_3.strain_contributions, mbfv2_p100, min_reads, min_abundance, selected_week="Week8") %>% 
+  filter((relative_abundance >= min_abundance)) %>%
+  plot_icl_aggregation(.,"hCom2 genomes in MBFv2 - Week8", "p100, aln100")
+
+ggsave(paste0(fig_dir,"/",time_stamp,"_hCom2_mbfv2_w8.ic_lite_p100_a100.eps"),
+       dpi="retina",
+       height = 12,
+       width = 16,
+       units = "in")
+
+ggsave(paste0(fig_dir,"/",time_stamp,"_hCom2_mbfv2_w8.ic_lite_p100_a100.pdf"),
+       useDingbats=FALSE,
+       dpi="retina",
+       height = 12,
+       width = 16,
+       units = "in")
+```
+
+```{r}
+run_icLite_aggregation(mbfv2_midas_output,scv2_3.strain_contributions, mbfv2_p99, min_reads, min_abundance, selected_week="Week8") %>% 
+  filter((relative_abundance >= min_abundance)) %>%
+  plot_icl_aggregation(.,"hCom2 genomes in MBFv2 - Week8", "p99, aln100")
+
+ggsave(paste0(fig_dir,"/",time_stamp,"_hCom2_mbfv2_w8.ic_lite_p99_a100.eps"),
+       dpi="retina",
+       height = 12,
+       width = 16,
+       units = "in")
+
+ggsave(paste0(fig_dir,"/",time_stamp,"_hCom2_mbfv2_w8.ic_lite_p99_a100.pdf"),
+       useDingbats=FALSE,
+       dpi="retina",
+       height = 12,
+       width = 16,
+       units = "in")
+```
+
+### (28?) new genomes in hCom2
+
+```{r}
+run_icLite_aggregation(mbfv2_midas_output,scv2_3.strain_contributions, mbfv2_p100, min_reads, min_abundance, selected_week="Week8") %>% 
+  filter((relative_abundance >= min_abundance)) %>%
+  filter(genome_name %in% new_genomes_in_SCv2_3) %>% 
+  plot_icl_aggregation(.,"new hCom2 genomes in MBFv2 - Week8", "p100, aln100")
+
+ggsave(paste0(fig_dir,"/",time_stamp,"_hCom2-new-genomes_mbfv2_w8.ic_lite_p100_a100.eps"),
+       dpi="retina",
+       height = 12,
+       width = 16,
+       units = "in")
+
+ggsave(paste0(fig_dir,"/",time_stamp,"_hCom2-new-genomes_mbfv2_w8.ic_lite_p100_a100.pdf"),
+       useDingbats=FALSE,
+       dpi="retina",
+       height = 12,
+       width = 16,
+       units = "in")
+```
+
+
+```{r}
+run_icLite_aggregation(mbfv2_midas_output,scv2_3.strain_contributions, mbfv2_p99, min_reads, min_abundance, selected_week="Week8") %>%
+  filter((relative_abundance >= min_abundance)) %>%
+  filter(genome_name %in% new_genomes_in_SCv2_3) %>% 
+  plot_icl_aggregation(.,"new hCom2 genomes in MBFv2 - Week8", "p99, aln100")
+
+ggsave(paste0(fig_dir,"/",time_stamp,"_hCom2-new-genomes_mbfv2_w8.ic_lite_p99_a100.eps"),
+       dpi="retina",
+       height = 12,
+       width = 16,
+       units = "in")
+
+ggsave(paste0(fig_dir,"/",time_stamp,"_hCom2-new-genomes_mbfv2_w8.ic_lite_p99_a100.pdf"),
+       useDingbats=FALSE,
+       dpi="retina",
+       height = 12,
+       width = 16,
+       units = "in")
+```
+

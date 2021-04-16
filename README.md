@@ -1,1 +1,32 @@
 # invaderCheck
+
+Identify strain invaders in a pre-defined community experiment.
+
+## Scripts
+
+- runInvaderCheck : runs invaderCheck.
+- collapse_to_midas : accepts outputs from [NinjaMap](https://github.com/czbiohub/ninjaMap), invaderCheck and [Midas](https://github.com/snayfach/MIDAS) and aggregates strain level data up to midas bucket levels.
+
+## Outputs
+
+### collapse_to_midas
+
+- `unique_name`: midas bucket - sample unique name; There may be multiple rows with the same 'unique_name', this happens because a bucket may contain multiple strains. All rows with the same unique names must be treated as the same bucket.
+- `sample_name`: name of the Week and mice that the sample was collected. In the form W#M#.
+- `midas_bucket`: name of the midas bucket.
+- `Organism`: name of the community strain mapped to this bucket.
+- `Bucket_midas_relative_abundance`: midas relative abundance * 100 for this midas_bucket.
+- `Bucket_imputed_NM_rel_abund`: NinjaMap relative abundance imputed for this midas_bucket.
+- `Org_proportional_rel_abund`: NinjaMap relative abundance for this Organism in this midas_bucket. Sum should equal the buckets NM rel abundance `Bucket_imputed_NM_rel_abund`.
+- `Org_NM_Norm_Read_Fraction`: NinjaMap relative abundance normalized by reads available (not default by read fraction).
+- `Org_initial_prediction`: InvaderCheck prediction for Organism.
+- `Org_prob_missed_2_EP`: Probability that we missed at least 2 `Extreme Nucleotide Deltas`.
+- `Bucket_final_prediction`: Output of this aggregation.
+- `Org_Extreme_Positions`: Number of observed `Extreme Nucleotide Deltas`.
+- `Org_Percent_Coverage`: Organism's Percent Breadth of Coverage.
+- `Org_Coverage_Depth`: Organism's Depth of Coverage.
+
+## Questions / Concerns
+
+- [Sunit Jain](microbiome.ninja) (dev)
+- Michael Fischbach (PI)
